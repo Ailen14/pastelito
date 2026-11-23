@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎂 ¡Feliz Cumple!</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #06060a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="escena"></canvas>
+
+  <script>
+    const canvas = document.getElementById("escena");
+    const ctx = canvas.getContext("2d");
+
+    const COLS = 114;
+    const FILAS = 62;
+    const CHARS = " .:-=+*#%@";
+
+    // Paleta de colores súper vivos
+    const BG_COLOR = "#06060a";
+    const COLOR_PASTEL_1 = [255, 20, 155];   // Rosa neón intenso
+    const COLOR_PASTEL_2 = [0, 235, 255];    // Cyan eléctrico
+    const COLOR_BETUN = [255, 250, 255];     // Blanco brillante
+    const COLOR_CEREZA = [255, 35, 65];      // Rojo vivo
+    const COLOR_PLATO = [225, 235, 255];     // Plateado luminoso
+    const COLOR_FLAMA = [255, 225, 30];      // Amarillo fuego brillante
+    const COLOR_PISO = [255, 205, 95];       // Ondas doradas luminosas
+
+    const COLORES_VELAS = [
+      [255, 60, 170],   // Rosa
+      [60, 245, 255],   // Cyan
+      [255, 225, 50],   // Amarillo
+      [190, 90, 255],   // Morado neón
+      [80, 255, 150]    // Verde menta
+    ];
+
+    const FUENTE_ASCII = {
+      'F': ["#####", "#    ", "#### ", "#    ", "#    "],
+      'E': ["#####", "#    ", "#### ", "#    ", "#####"],
+      'L': ["#    ", "#    ", "#    ", "#    ", "#####"],
+      'I': ["#####", "  #  ", "  #  ", "  #  ", "#####"],
+      'Z': ["#####", "   # ", "  #  ", " #   ", "#####"],
+      'C': [" ####", "#    ", "#    ", "#    ", " ####"],
+      'U': ["#   #", "#   #", "#   #", "#   #", " ### "],
+      'M': ["#   #", "## ##", "# # #", "#   #", "#   #"],
+      'P': ["#### ", "#   #", "#### ", "#    ", "#    "],
+      ' ': ["   ", "   ", "   ", "   ", "   "]
+    };
+
+    let celdaW = 8;
+    let celdaH = 12;
+
+    function ajustarTamano() {
+      const maxW = Math.min(window.innerWidth * 0.98, 980);
+      const maxH = window.innerHeight * 0.96;
+      celdaH = Math.max(7, Math.floor(maxH / FILAS));
+      celdaW = Math.max(4, Math.floor(celdaH * 0.62));
+
+      if (celdaW * COLS > maxW) {
+        celdaW = Math.max(4, Math.floor(maxW / COLS));
+        celdaH = Math.max(7, Math.floor(celdaW / 0.62));
+      }
+
+      canvas.width = COLS * celdaW;
+      canvas.height = FILAS * celdaH;
+      ctx.font = `bold ${Math.floor(celdaH * 0.96)}px Consolas, "Courier New", monospace`;
+      ctx.textBaseline = "top";
+    }
+
+    window.addEventListener("resize", ajustarTamano);
+    ajustarTamano();
+
+    function rgbStr(rgb, intensidad = 1.0) {
+      const r = Math.max(0, Math.min(255, Math.floor(rgb[0] * intensidad)));
+      const g = Math.max(0, Math.min(255, Math.floor(rgb[1] * intensidad)));
+      const b = Math.max(0, Math.min(255, Math.floor(rgb[2] * intensidad)));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // --- FUEGOS ARTIFICIALES AMARILLOS ---
+    const fuegos = [];
+    const tonosAmarillos = [
+      [255, 235, 40],   // Amarillo neón puro
+      [255, 200, 20],   // Amarillo oro
+      [255, 250, 140],  // Amarillo chispa claro
+      [255, 175, 15]    // Ámbar dorado
+    ];
+
+    function crearFuegoArtificial() {
+      const zonasX = [
+        10 + Math.random() * 22,
+        COLS - 32 + Math.random() * 22,
+        26 + Math.random() * (COLS - 52)
+      ];
+      const cx = zonasX[Math.floor(Math.random() * zonasX.length)];
+      const cy = 5 + Math.random() * 26;
+      const numRayos = 14 + Math.floor(Math.random() * 6);
+      const chispas = [];
+
+      for (let i = 0; i < numRayos; i++) {
+        const ang = (2 * Math.PI * i) / numRayos + (Math.random() * 0.15);
+        const vel = 0.28 + Math.random() * 0.18;
+        chispas.push({
+          vx: Math.cos(ang) * vel * 1.45,
+          vy: Math.sin(ang) * vel,
+          col: tonosAmarillos[Math.floor(Math.random() * tonosAmarillos.length)]
+        });
+      }
+
+      fuegos.push({
+        cx,
+        cy,
+        edad: 0,
+        vidaMax: 34 + Math.floor(Math.random() * 14),
+        chispas
+      });
+    }
+
+    for (let i = 0; i < 3; i++) {
+      crearFuegoArtificial();
+      fuegos[i].edad = i * 11;
+    }
+
+    const estrellas = Array.from({ length: 45 }, () => ({
+      x: Math.floor(Math.random() * COLS),
+      y: Math.floor(Math.random() * FILAS),
+      fase: 0.5 + Math.random() * 2.0
+    }));
+
+    let angulo = 0;
+    let tiempo = 0;
+
+    function proyectar(x, y, z) {
+      const cosA = Math.cos(angulo);
+      const sinA = Math.sin(angulo);
+      const rx = x * cosA - z * sinA;
+      const rz = x * sinA + z * cosA;
+
+      const inclinacion = 0.24;
+      const ry = y * Math.cos(inclinacion) - rz * Math.sin(inclinacion);
+      const rzFinal = y * Math.sin(inclinacion) + rz * Math.cos(inclinacion);
+
+      const distancia = 4.4;
+      const zCam = rzFinal + distancia;
+      if (zCam <= 0.2) return null;
+
+      const sx = Math.floor(COLS / 2 + (rx * 56.0) / zCam);
+      // Pastel bien pegadito debajo de "FELIZ CUMPLE" (+4)
+      const sy = Math.floor(FILAS / 2 + 4 - (ry * 48.0) / zCam);
+      return { sx, sy, zCam };
+    }
+
+    function dibujarPunto(buffer, zbuffer, x, y, z, nx, ny, nz, colorBase, fuerzaLuz = 1.0, charForzado = null) {
+      const proy = proyectar(x, y, z);
+      if (!proy) return;
+      const { sx, sy, zCam } = proy;
+
+      if (sx >= 0 && sx < COLS && sy >= 0 && sy < FILAS) {
+        const idx = sy * COLS + sx;
+        if (zCam < zbuffer[idx]) {
+          zbuffer[idx] = zCam;
+
+          const lx = -0.45, ly = 0.72, lz = -0.53;
+          const cosA = Math.cos(angulo);
+          const sinA = Math.sin(angulo);
+          const rnx = nx * cosA - nz * sinA;
+          const rnz = nx * sinA + nz * cosA;
+
+          let iluminacion = Math.max(0.48, rnx * lx + ny * ly + rnz * lz) * fuerzaLuz;
+          iluminacion = Math.min(1.0, iluminacion);
+
+          const char = charForzado || CHARS[Math.floor(iluminacion * (CHARS.length - 1))];
+          buffer[idx] = {
+            char,
+            color: rgbStr(colorBase, 0.65 + 0.35 * iluminacion)
+          };
+        }
+      }
+    }
+
+    function dibujarLineaBanner(buffer, texto, filaInicio) {
+      const simbolosBanner = ["@", "#", "*", "+"];
+      const paletaLetras = [
+        [255, 30, 160],   // Rosa neón
+        [255, 225, 40],   // Amarillo dorado
+        [0, 240, 255],    // Cyan eléctrico
+        [200, 100, 255]   // Lila brillante
+      ];
+
+      let anchoTotal = 0;
+      for (const ch of texto) {
+        const matriz = FUENTE_ASCII[ch] || FUENTE_ASCII[' '];
+        anchoTotal += matriz[0].length + 2;
+      }
+      anchoTotal -= 2;
+
+      let cursorX = Math.floor((COLS - anchoTotal) / 2);
+
+      for (let i = 0; i < texto.length; i++) {
+        const ch = texto[i];
+        const matriz = FUENTE_ASCII[ch] || FUENTE_ASCII[' '];
+        const anchoLetra = matriz[0].length;
+        const colorEstaLetra = paletaLetras[i % paletaLetras.length];
+
+        for (let r = 0; r < 5; r++) {
+          for (let c = 0; c < anchoLetra; c++) {
+            if (matriz[r][c] === "#") {
+              const px = cursorX + c;
+              const py = filaInicio + r;
+              if (px >= 0 && px < COLS && py >= 0 && py < FILAS) {
+                const idxSimbolo = (px + py) % simbolosBanner.length;
+                const brilloSuave = 0.88 + 0.12 * Math.sin(tiempo * 2.5 + i * 0.7);
+                buffer[py * COLS + px] = {
+                  char: simbolosBanner[idxSimbolo],
+                  color: rgbStr(colorEstaLetra, brilloSuave)
+                };
+              }
+            }
+          }
+        }
+        cursorX += anchoLetra + 2;
+      }
+    }
+
+    function actualizarYDibujarFuegos(buffer) {
+      if (fuegos.length < 4 && Math.random() < 0.045) {
+        crearFuegoArtificial();
+      }
+
+      for (let f = fuegos.length - 1; f >= 0; f--) {
+        const fw = fuegos[f];
+        fw.edad++;
+
+        if (fw.edad >= fw.vidaMax) {
+          fuegos.splice(f, 1);
+          continue;
+        }
+
+        const progreso = fw.edad / fw.vidaMax;
+        const intensidad = progreso < 0.65 ? 1.0 : Math.max(0.15, (1 - progreso) / 0.35);
+
+        for (const ch of fw.chispas) {
+          for (let estela = 0; estela < 2; estela++) {
+            const tPaso = Math.max(0, fw.edad - estela * 1.6);
+            const px = Math.round(fw.cx + ch.vx * tPaso);
+            const py = Math.round(fw.cy + ch.vy * tPaso + 0.004 * tPaso * tPaso);
+
+            if (px >= 0 && px < COLS && py >= 0 && py < FILAS) {
+              const simbolo = estela === 0
+                ? (progreso < 0.5 ? "*" : "+")
+                : ".";
+              const brilloEstela = estela === 0 ? intensidad : intensidad * 0.55;
+              buffer[py * COLS + px] = {
+                char: simbolo,
+                color: rgbStr(ch.col, brilloEstela)
+              };
+            }
+          }
+        }
+      }
+    }
+
+    function renderizar() {
+      const totalCeldas = COLS * FILAS;
+      const buffer = new Array(totalCeldas).fill(null);
+      const zbuffer = new Float32Array(totalCeldas).fill(999.0);
+
+      // 1. Estrellitas de fondo
+      for (const p of estrellas) {
+        const brillo = 0.45 + 0.55 * Math.sin(tiempo * 2.0 + p.fase * 4);
+        if (brillo > 0.72) {
+          buffer[p.y * COLS + p.x] = {
+            char: ".",
+            color: rgbStr([255, 240, 170], brillo * 0.7)
+          };
+        }
+      }
+
+      // 2. Fuegos artificiales amarillos
+      actualizarYDibujarFuegos(buffer);
+
+      // 3. Texto "FELIZ CUMPLE" bien cerquita del pastel (fila 6)
+      dibujarLineaBanner(buffer, "FELIZ CUMPLE", 6);
+
+      // 4. Ondas luminosas en el piso
+      for (let stepR = 9; stepR < 26; stepR++) {
+        const r = stepR * 0.13;
+        const pasos = Math.floor(r * 52);
+        for (let i = 0; i < pasos; i++) {
+          const theta = (2 * Math.PI * i) / pasos;
+          const onda = Math.sin(r * 5.2 - tiempo * 1.6);
+          if (onda > 0.15) {
+            dibujarPunto(
+              buffer, zbuffer,
+              r * Math.cos(theta), -1.08 + onda * 0.03, r * Math.sin(theta),
+              0, 1, 0, COLOR_PISO, 0.78 + 0.22 * onda
+            );
+          }
+        }
+      }
+
+      // 5. Plato base
+      for (let ir = 1; ir <= 12; ir++) {
+        const rPlato = 1.15 * (ir / 12.0);
+        const pasos = Math.floor(rPlato * 50);
+        for (let ia = 0; ia < pasos; ia++) {
+          const a = (2 * Math.PI * ia) / pasos;
+          const yPlato = ir < 11 ? -1.02 : -0.97;
+          dibujarPunto(
+            buffer, zbuffer,
+            rPlato * Math.cos(a), yPlato, rPlato * Math.sin(a),
+            0, 1, 0, COLOR_PLATO, 0.95
+          );
+        }
+      }
+
+      // 6. Pastel de 2 pisos
+      const pisos = [
+        { radio: 0.88, y0: -0.97, y1: -0.18, col: COLOR_PASTEL_1 },
+        { radio: 0.58, y0: -0.18, y1:  0.48, col: COLOR_PASTEL_2 }
+      ];
+
+      for (const p of pisos) {
+        const nivelesY = 22;
+        for (let iy = 0; iy < nivelesY; iy++) {
+          const fracY = iy / (nivelesY - 1);
+          const y = p.y0 + (p.y1 - p.y0) * fracY;
+          const pasosAng = 80;
+          for (let ia = 0; ia < pasosAng; ia++) {
+            const a = (2 * Math.PI * ia) / pasosAng;
+            const nx = Math.cos(a);
+            const nz = Math.sin(a);
+            const drip = 0.74 + 0.14 * Math.sin(a * 7);
+            const colorActual = fracY >= drip ? COLOR_BETUN : p.col;
+            dibujarPunto(
+              buffer, zbuffer,
+              p.radio * nx, y, p.radio * nz,
+              nx, 0.08, nz, colorActual
+            );
+          }
+        }
+
+        for (let ir = 1; ir <= 12; ir++) {
+          const rAct = p.radio * (ir / 12.0);
+          const pasosAng = Math.max(20, Math.floor(rAct * 55));
+          for (let ia = 0; ia < pasosAng; ia++) {
+            const a = (2 * Math.PI * ia) / pasosAng;
+            dibujarPunto(
+              buffer, zbuffer,
+              rAct * Math.cos(a), p.y1, rAct * Math.sin(a),
+              0, 1, 0, COLOR_BETUN
+            );
+          }
+        }
+      }
+
+      // 7. Cerezas rojas
+      const capasCerezas = [
+        { radio: 0.76, y: -0.13, cant: 9 },
+        { radio: 0.47, y:  0.53, cant: 6 }
+      ];
+      for (const cc of capasCerezas) {
+        for (let c = 0; c < cc.cant; c++) {
+          const angC = (2 * Math.PI * c) / cc.cant;
+          const cx = cc.radio * Math.cos(angC);
+          const cz = cc.radio * Math.sin(angC);
+          for (const dy of [-0.035, 0, 0.035]) {
+            for (let da = 0; da < 10; da++) {
+              const a = (2 * Math.PI * da) / 10;
+              dibujarPunto(
+                buffer, zbuffer,
+                cx + 0.045 * Math.cos(a), cc.y + dy, cz + 0.045 * Math.sin(a),
+                Math.cos(a), 0.3, Math.sin(a),
+                COLOR_CEREZA, 1.0, "@"
+              );
+            }
+          }
+        }
+      }
+
+      // 8. Velas multicolor y flamas
+      const numVelas = 5;
+      const radioVelas = 0.28;
+      for (let v = 0; v < numVelas; v++) {
+        const angV = (2 * Math.PI * v) / numVelas;
+        const vx = radioVelas * Math.cos(angV);
+        const vz = radioVelas * Math.sin(angV);
+        const colorVela = COLORES_VELAS[v % COLORES_VELAS.length];
+
+        for (let vyStep = 0; vyStep < 12; vyStep++) {
+          const vy = 0.50 + vyStep * 0.045;
+          const colorVelaActual = (vyStep % 3 === 1) ? [255, 255, 255] : colorVela;
+          for (let va = 0; va < 12; va++) {
+            const a = (2 * Math.PI * va) / 12;
+            const nx = Math.cos(a), nz = Math.sin(a);
+            dibujarPunto(
+              buffer, zbuffer,
+              vx + 0.035 * nx, vy, vz + 0.035 * nz,
+              nx, 0, nz, colorVelaActual, 1.0
+            );
+          }
+        }
+
+        const osc = Math.sin(tiempo * 8 + v * 2.1) * 0.018;
+        for (let fyStep = 0; fyStep < 8; fyStep++) {
+          const fy = 1.05 + fyStep * 0.035;
+          const rFlama = 0.045 * (1 - fyStep / 8.2);
+          for (let fa = 0; fa < 10; fa++) {
+            const a = (2 * Math.PI * fa) / 10;
+            dibujarPunto(
+              buffer, zbuffer,
+              vx + osc + rFlama * Math.cos(a),
+              fy,
+              vz + rFlama * Math.sin(a),
+              0, 1, 0, COLOR_FLAMA, 1.0, "*"
+            );
+          }
+        }
+      }
+
+      // 9. Aro de chispas multicolor alrededor del pastel
+      const totalSimbolosOrbita = 28;
+      const simbolosOrbita = ["*", "+", "@", "#"];
+      const radioOrbita = 1.24;
+      for (let i = 0; i < totalSimbolosOrbita; i++) {
+        const angL = -(2 * Math.PI * i) / totalSimbolosOrbita;
+        const tx = radioOrbita * Math.cos(angL);
+        const tz = radioOrbita * Math.sin(angL);
+        const ty = -0.45 + 0.03 * Math.sin(tiempo * 2.2 + i * 0.6);
+        const simb = simbolosOrbita[i % simbolosOrbita.length];
+        const colOrb = COLORES_VELAS[i % COLORES_VELAS.length];
+        dibujarPunto(
+          buffer, zbuffer, tx, ty, tz,
+          Math.cos(angL), 0.2, Math.sin(angL),
+          colOrb, 1.0, simb
+        );
+      }
+
+      // Pintar en el canvas con brillo neón
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = BG_COLOR;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.shadowBlur = 7;
+      for (let y = 0; y < FILAS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const celda = buffer[y * COLS + x];
+          if (celda) {
+            ctx.fillStyle = celda.color;
+            ctx.shadowColor = celda.color;
+            ctx.fillText(celda.char, x * celdaW, y * celdaH);
+          }
+        }
+      }
+
+      angulo += 0.014;
+      tiempo += 0.025;
+      requestAnimationFrame(renderizar);
+    }
+
+    renderizar();
+  </script>
+</body>
+</html>
